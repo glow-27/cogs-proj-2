@@ -1,0 +1,183 @@
+---
+title: "mixed_effects_modeling"
+format: html
+editor: visual
+---
+
+```{r}
+library(tidyverse)
+library(glmmTMB)
+library(groupdata2)
+library(MASS)
+```
+
+```{r}
+getwd()
+```
+
+```{r}
+gid <- read.csv("modified_data/gid_tracts.csv")
+head(gid)
+```
+
+```{r}
+gid <- gid |>
+  mutate(date_requested = as_datetime(date_requested))
+
+# subset to reduce runtime for rand effect models
+gid_sub <- gid |>
+  filter(date_requested > '2024-01-01')
+
+nrow(gid_sub)
+```
+
+```{r}
+length(unique(gid_sub$comm_plan_name))
+```
+
+```{r}
+set.seed(42069)
+gid_sub <- gid_sub |>
+  mutate(comm_plan_name = as.factor(comm_plan_name),
+         category = as.factor(category))
+# partition by neighborhood (community plan name)
+# ensures that all reports from a neighborhood stay entirely in train OR test
+neigh_partition <- partition(gid_sub, p=0.2, id_col = 'comm_plan_name')
+```
+
+```{r}
+
+test_set <- neigh_partition[[1]]
+train_set <- neigh_partition[[2]]
+
+head(test_set)
+```
+
+```{r}
+length(setdiff(unique(train_set$comm_plan_name), unique(test_set$comm_plan_name)))
+length(setdiff(unique(test_set$comm_plan_name), unique(train_set$comm_plan_name)))
+# adds up to 116!
+```
+
+```{r}
+train_set <- fold(train_set, k=5, id_col = 'comm_plan_name')
+train_set |>
+  arrange(.folds)
+```
+
+```{r}
+test_set <- fold(test_set, k=5, id_col = 'comm_plan_name')
+test_set |>
+  arrange(.folds)
+```
+
+```{r}
+train_set |>
+  group_by(tractce) |>
+  summarize(count=n())
+```
+
+```{r}
+train_re_mod <- glmmTMB(case_age_days ~ pd_count + category + (1|comm_plan_name),
+                        family=nbinom1, data=train_set,
+                        control = glmmTMBControl(optimizer = optim,
+                                                 optArgs = list(method = "Nelder-Mead")))
+
+saveRDS(train_re_mod, "train_re_mod.rds")
+```
+
+```{r}
+summary(train_re_mod)
+```
+
+```{r}
+colnames(train_set)
+```
+
+
+```{r}
+council_dist_re <- glmmTMB(case_age_days ~ pd_count + category + (1|council_district),
+                family=nbinom1, data=train_set,
+                control=glmmTMBControl(optimizer=optim, 
+                                       optArgs=list(method="Nelder-Mead")))
+
+
+```
+```{r}
+summary(council_dist_re)
+```
+
+
+```{r}
+train_fe_mod <- glm.nb(case_age_days ~ pd_count + category + comm_plan_name,
+                       data=train_set)
+
+saveRDS(train_fe_mod, "train_fe_mod.rds")
+
+
+```
+
+```{r}
+summary(train_fe_mod)
+```
+
+
+```{r}
+train_mod <- glmmTMB(case_age_days ~ pd_count + category,
+                       zi=~1, family=nbinom1, data=train_set,
+                       control=glmmTMBControl(optimizer=optim,
+                                             optArgs=list(method="BFGS")))
+
+saveRDS(train_mod, "train_mod.rds")
+```
+
+
+```{r}
+summary(train_mod)
+```
+
+```{r}
+# MAE metric
+mae_fn <- function(predicted, observed){
+  mean(abs(observed - predicted))
+}
+
+group_cv <- function(train_set, test_set, k=5, rand_eff=FALSE){
+  results <- c()
+  for (fold in 1:k){
+    train_sub <- train_set[train_set$.folds != fold,]
+    test_sub  <- test_set[test_set$.folds == fold,]   
+    
+    if (rand_eff){
+      model <- glmmTMB(case_age_days ~ pd_count + category + (1|tractce),
+                       family=nbinom1, data=train_sub,
+                       control=glmmTMBControl(optimizer=optim,
+                                             optArgs=list(method="BFGS")))
+    } else {
+      model <- glm.nb(case_age_days ~ pd_count + category,
+                       family=nbinom1, data=train_sub)
+    }
+    
+    predicted  <- predict(model, test_sub, allow.new.levels=TRUE)
+    results[fold] <- mae_fn(predicted, test_sub[["case_age_days"]])  
+  }
+  
+  return(c('MAE' = mean(results)))
+}
+```
+
+```{r}
+start.time <- Sys.time()
+cv_tracts <- group_cv(train_set, test_set, k=5, rand_eff = TRUE)
+saveRDS(cv_tracts, "tracts.rds")
+cv_no_tracts <- group_cv(train_set, test_set, k=5, rand_eff = FALSE)
+saveRDS(cv_no_tracts, "no_tracts.rds")
+
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken
+```
+```{r}
+cv_no_tracts
+```
+
