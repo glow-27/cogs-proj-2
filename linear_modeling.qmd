@@ -1,0 +1,62 @@
+---
+title: "linear_modeling.qmd"
+format: html
+editor: visual
+---
+
+```{r}
+library(tidyverse)
+library(glmmTMB)
+library(groupdata2)
+library(MASS)
+```
+
+```{r}
+getwd()
+```
+
+```{r}
+gid <- read.csv("modified_data/gid_tracts.csv")
+head(gid)
+
+```
+
+```{r}
+set.seed(42069)
+
+gid_sub <- gid |>
+  mutate(comm_plan_name = as.factor(comm_plan_name),
+         category = as.factor(category),
+         case_age_day_log = log(case_age_days + 1))
+# partition by neighborhood (community plan name)
+# ensures that all reports from a neighborhood stay entirely in train OR test
+neigh_partition <- partition(gid_sub, p=0.2, id_col = 'comm_plan_name')
+```
+
+```{r}
+test_set <- neigh_partition[[1]]
+train_set <- neigh_partition[[2]]
+```
+
+```{r}
+train_set <- fold(train_set, k=5, id_col = 'comm_plan_name')
+train_set |>
+  arrange(.folds)
+
+test_set <- fold(test_set, k=5, id_col = 'comm_plan_name')
+test_set |>
+  arrange(.folds)
+```
+
+```{r}
+train_set |>
+  group_by(tractce) |>
+  summarize(count=n())
+```
+```{r}
+linmodel1 = lm('cage_age_day_log ~ category + pd_count',
+               data = train_set,
+               se_type = "HC1")
+summary(linmodel1)
+```
+
