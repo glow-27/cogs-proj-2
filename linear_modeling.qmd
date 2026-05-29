@@ -54,9 +54,15 @@ train_set |>
   summarize(count=n())
 ```
 ```{r}
-linmodel1 = lm('cage_age_day_log ~ category + pd_count',
+linmodel1 = lm('case_age_day_log ~ category + pd_count',
                data = train_set,
                se_type = "HC1")
 summary(linmodel1)
 ```
-
+```{r}
+#Linear model 2
+linmodel2 = lm('case_age_day_log ~ category + pd_count + council_district',
+               data = train_set,
+               se_type = "HC1")
+summary(linmodel1)
+```
