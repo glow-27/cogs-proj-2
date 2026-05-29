@@ -23,7 +23,6 @@ head(gid)
 
 ```{r}
 set.seed(42069)
-
 gid_sub <- gid |>
   mutate(comm_plan_name = as.factor(comm_plan_name),
          category = as.factor(category),
@@ -31,6 +30,11 @@ gid_sub <- gid |>
 # partition by neighborhood (community plan name)
 # ensures that all reports from a neighborhood stay entirely in train OR test
 neigh_partition <- partition(gid_sub, p=0.2, id_col = 'comm_plan_name')
+
+# fixing case origin levels for cv:
+all_levels <- unique(gid_sub$case_origin)
+gid_sub$case_origin <- factor(gid_sub$case_origin, levels = all_levels)
+
 ```
 
 ```{r}
@@ -53,16 +57,88 @@ train_set |>
   group_by(tractce) |>
   summarize(count=n())
 ```
+
 ```{r}
-linmodel1 = lm('case_age_day_log ~ category + pd_count',
-               data = train_set,
-               se_type = "HC1")
+linmodel1 = lm('case_age_day_log ~ C(category) + pd_count',
+               data = gid_sub)
 summary(linmodel1)
 ```
+
 ```{r}
 #Linear model 2
-linmodel2 = lm('case_age_day_log ~ category + pd_count + council_district',
-               data = train_set,
-               se_type = "HC1")
-summary(linmodel1)
+linmodel2 = lm('case_age_day_log ~ C(category) + pd_count + C(council_district)',
+               data = gid_sub)
+summary(linmodel2)
+
+#seeing if case_origin would work too
+linmodel3 = lm('case_age_day_log ~ C(category) + pd_count + C(council_district) + C(case_origin)',
+               data = gid_sub
+               )
+```
+
+```{r}
+library(stargazer)
+
+stargazer(linmodel1, linmodel2, linmodel3, type = "text", title = "Regression Results")
+
+
+#MULTICOLLINEARITY CHECK
+library(performance)
+check_collinearity(linmodel3)
+
+```
+
+```{r}
+# MAE metric
+mae_fn <- function(predicted, observed){
+  mean(abs(observed - predicted))
+}
+
+group_cv <- function(train_set, test_set, k=5, modelnum){
+  results <- c()
+  for (fold in 1:k){
+    train_sub <- train_set[train_set$.folds != fold,]
+    test_sub  <- test_set[test_set$.folds == fold,]
+    
+    #checking for new case_origin levels since this was throwing errors without this check
+    trained_origins <- unique(train_sub$case_origin)
+    test_sub <- test_sub[test_sub$case_origin %in% trained_origins, ]
+    if (nrow(test_sub) == 0) {
+      warning(paste("Fold", fold, "skipped: No valid test rows after filtering unseen levels."))
+      next
+    }
+    
+    if (modelnum == 1){
+      model = lm('case_age_day_log ~ C(category) + pd_count',
+               data = train_sub)
+    } else if (modelnum == 2){
+      model = lm('case_age_day_log ~ C(category) + pd_count + C(council_district)',
+               data = train_sub)
+    } else {
+      model = lm('case_age_day_log ~ C(category) + pd_count + C(council_district) + C(case_origin)',
+               data = train_sub)
+    }
+    
+    predicted  <- predict(model, test_sub, allow.new.levels=TRUE)
+    results[fold] <- mae_fn(predicted, test_sub[["case_age_days_log"]])  
+  }
+  
+  return(c('MAE' = mean(results)))
+}
+```
+
+```{r}
+start.time <- Sys.time()
+cv_model1 <- group_cv(train_set, test_set, k=5, 1)
+saveRDS(cv_model1, "linmodel1.rds")
+cv_model2 <- group_cv(train_set, test_set, k=5, 2)
+saveRDS(cv_model2, "linmodel2.rds")
+# cv_model3 <- group_cv(train_set, test_set, k=5, 3)
+# saveRDS(cv_model3, "linmodel3.rds")
+
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken
+
+
 ```
