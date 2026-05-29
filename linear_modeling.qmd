@@ -84,7 +84,7 @@ summary(linmodel4)
 ```{r}
 library(stargazer)
 
-stargazer(linmodel1, linmodel2, linmodel3, linmodel4, type = "text", title = "Regression Results")
+stargazer(linmodel1, linmodel2, linmodel3, linmodel4, title = "Regression Results")
 
 
 #MULTICOLLINEARITY CHECK
@@ -99,6 +99,10 @@ mae_fn <- function(predicted, observed){
   mean(abs(observed - predicted))
 }
 
+mse_fcn <- function(predicted, observed){
+  mean((observed - predicted)**2)
+}
+
 group_cv <- function(train_set, test_set, k=5, modelnum){
   results <- c()
   for (fold in 1:k){
@@ -107,7 +111,11 @@ group_cv <- function(train_set, test_set, k=5, modelnum){
     
     #checking for new case_origin levels since this was throwing errors without this check
     trained_origins <- unique(train_sub$case_origin)
+    trained_categories <- unique(train_sub$category)
+    trained_councildist <- unique(train_sub$council_district)
     test_sub <- test_sub[test_sub$case_origin %in% trained_origins, ]
+    test_sub <- test_sub[test_sub$category %in% trained_categories, ]
+    test_sub <- test_sub[test_sub$council_district %in% trained_councildist, ]
     if (nrow(test_sub) == 0) {
       warning(paste("Fold", fold, "skipped: No valid test rows after filtering unseen levels."))
       next
@@ -134,10 +142,11 @@ group_cv <- function(train_set, test_set, k=5, modelnum){
     }
     
     predicted  <- predict(model, test_sub, allow.new.levels=TRUE)
-    results[fold] <- mae_fn(predicted, test_sub[["case_age_days_log"]])  
+    results[fold] <- mse_fcn(predicted, test_sub$case_age_day_log)
+    #results[fold] <- mean((predicted - test_sub$"case_age_days_log")^2)
   }
   
-  return(c('MAE' = mean(results)))
+  return(c('MSE' = mean(results)))
 }
 ```
 
@@ -161,5 +170,10 @@ time.taken
 
 ```
 
+```{r}
+library(cv) #install.packages("cv")
 
+cv_results <- cv(linmodel1, data = gid_sub, k = 5, seed = 123)
+summary(cv_results)
 
+```
