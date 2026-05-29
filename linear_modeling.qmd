@@ -74,6 +74,11 @@ summary(linmodel2)
 linmodel3 = lm('case_age_day_log ~ C(category) + pd_count + C(council_district) + C(case_origin)',
                data = gid_sub
                )
+
+#With random ints
+linmodel4 = lm('case_age_day_log ~ category + pd_count + C(council_district) + (1|tractce)',
+               data = gid_sub)
+summary(linmodel4)
 ```
 
 ```{r}
@@ -114,8 +119,11 @@ group_cv <- function(train_set, test_set, k=5, modelnum){
     } else if (modelnum == 2){
       model = lm('case_age_day_log ~ C(category) + pd_count + C(council_district)',
                data = train_sub)
-    } else {
+    } else if (modelnum == 3){
       model = lm('case_age_day_log ~ C(category) + pd_count + C(council_district) + C(case_origin)',
+               data = train_sub)
+    } else {
+      model = lm('case_age_day_log ~ C(category) + pd_count + C(council_district) + (1|tractce)',
                data = train_sub)
     }
     
@@ -135,6 +143,8 @@ cv_model2 <- group_cv(train_set, test_set, k=5, 2)
 saveRDS(cv_model2, "linmodel2.rds")
 # cv_model3 <- group_cv(train_set, test_set, k=5, 3)
 # saveRDS(cv_model3, "linmodel3.rds")
+cv_model4 <- group_cv(train_set, test_set, k=5, 4)
+saveRDS(cv_model4, "linmodel4.rds")
 
 end.time <- Sys.time()
 time.taken <- end.time - start.time
