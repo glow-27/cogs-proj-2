@@ -64,6 +64,22 @@ train_set |>
 linmodel1 = lm('case_age_day_log ~ C(category) + pd_count',
                data = gid_sub)
 summary(linmodel1)
+
+# Extract residuals and fitted values
+diagnostics1 <- data.frame(
+  Fitted = predict(linmodel1),
+  Residuals = residuals(linmodel1)
+)
+
+# Plot Residuals vs Fitted
+ggplot(diagnostics1, aes(x = Fitted, y = Residuals)) +
+  geom_point(alpha = 0.2) +
+  geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
+  labs(title = "Residuals vs Fitted Values",
+       subtitle = "case_age_day_log ~ C(category) + pd_count",
+       x = "Fitted Values",
+       y = "Residuals") +
+  theme_minimal()
 ```
 
 ```{r}
@@ -72,27 +88,79 @@ linmodel2 = lm('case_age_day_log ~ C(category) + pd_count + C(council_district)'
                data = gid_sub)
 summary(linmodel2)
 
+# Extract residuals and fitted values
+diagnostics2 <- data.frame(
+  Fitted = predict(linmodel2),
+  Residuals = residuals(linmodel2)
+)
+
+# Plot Residuals vs Fitted
+ggplot(diagnostics2, aes(x = Fitted, y = Residuals)) +
+  geom_point(alpha = 0.2) +
+  geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
+  labs(title = "Residuals vs Fitted Values",
+       subtitle = "case_age_day_log ~ C(category) + pd_count + C(council_district)",
+       x = "Fitted Values",
+       y = "Residuals") +
+  theme_minimal()
+
 #seeing if case_origin would work too
 linmodel3 = lm('case_age_day_log ~ C(category) + pd_count + C(council_district) + C(case_origin)',
                data = gid_sub
                )
+```
 
+```{r}
 #With random ints
 linmodel4 = lmer('case_age_day_log ~ C(category) + pd_count + C(council_district) + (1|tractce)',
                data = gid_sub)
 
+# Extract residuals and fitted values
+diagnostics4 <- data.frame(
+  Fitted = predict(linmodel4),
+  Residuals = residuals(linmodel4)
+)
+
+# Plot Residuals vs Fitted
+ggplot(diagnostics4, aes(x = Fitted, y = Residuals)) +
+  geom_point(alpha = 0.2) +
+  geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
+  labs(title = "Residuals vs Fitted Values",
+       subtitle = "case_age_day_log ~ C(category) + pd_count + C(council_district) + (1|tractce)",
+       x = "Fitted Values",
+       y = "Residuals") +
+  theme_minimal()
+
+
 linmodel5 = lmer('case_age_day_log ~ C(category) + pd_count + (1|tractce)',
                data = gid_sub)
 summary(linmodel5)
+
+# Extract residuals and fitted values
+diagnostics <- data.frame(
+  Fitted = predict(linmodel5),
+  Residuals = residuals(linmodel5)
+)
+
+# Plot Residuals vs Fitted
+ggplot(diagnostics, aes(x = Fitted, y = Residuals)) +
+  geom_point(alpha = 0.2) +
+  geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
+  labs(title = "Residuals vs Fitted Values",
+       subtitle = "case_age_day_log ~ C(category) + pd_count + (1|tractce)",
+       x = "Fitted Values",
+       y = "Residuals") +
+  theme_minimal()
+
 ```
 
 ```{r}
 library(stargazer)
 
-stargazer(linmodel1, linmodel2, 
+stargazer(linmodel1, linmodel2, linmodel5, linmodel4,
           font.size = "small",
           align = TRUE,
-          column.sep.width = "-30pt",
+          column.sep.width = "-15pt",
           #omit.stat=c("f", "ser"),
           no.space = TRUE,
           title = "Regression Results")
@@ -100,7 +168,7 @@ stargazer(linmodel1, linmodel2,
 
 #MULTICOLLINEARITY CHECK
 library(performance)
-check_collinearity(linmodel5)
+check_collinearity(linmodel4)
 
 ```
 
@@ -142,13 +210,13 @@ group_cv <- function(train_set, test_set, k=5, modelnum){
       model = lm('case_age_day_log ~ C(category) + pd_count + C(council_district) + C(case_origin)',
                data = train_sub)
     } else if (modelnum == 4){
-      model = lm('case_age_day_log ~ C(category) + pd_count + C(case_origin) + (1|tractce)',
+      model = lmer('case_age_day_log ~ C(category) + pd_count + C(case_origin) + (1|tractce)',
                data = train_sub)
     } else if (modelnum == 5){
-      model = lm('case_age_day_log ~ C(category) + pd_count + (1|tractce)',
+      model = lmer('case_age_day_log ~ C(category) + pd_count + (1|tractce)',
                data = train_sub)
     } else {
-      model = lm('case_age_day_log ~ C(category) + pd_count + C(council_district) + (1|tractce)',
+      model = lmer('case_age_day_log ~ C(category) + pd_count + C(council_district) + (1|tractce)',
                data = train_sub)
     }
     
@@ -186,5 +254,18 @@ library(cv) #install.packages("cv")
 
 cv_results <- cv(linmodel1, data = gid_sub, k = 5, seed = 123)
 summary(cv_results)
+
+```
+
+```{r}
+ggplot(gid_sub, aes(x = log(pd_count + 1), y = case_age_day_log)) +
+  geom_point(alpha = 0.1) +
+  geom_smooth(method = "lm") +
+  labs(title = "Case Age by PD Count and Category",
+       x = "PD Count",
+       y = "Log(Case Age Days + 1)") +
+  theme_minimal()
+```
+```{r}
 
 ```
