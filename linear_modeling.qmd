@@ -84,12 +84,12 @@ summary(linmodel4)
 ```{r}
 library(stargazer)
 
-stargazer(linmodel1, linmodel2, linmodel3, type = "text", title = "Regression Results")
+stargazer(linmodel1, linmodel2, linmodel3, linmodel4, type = "text", title = "Regression Results")
 
 
 #MULTICOLLINEARITY CHECK
 library(performance)
-check_collinearity(linmodel3)
+check_collinearity(linmodel4)
 
 ```
 
@@ -122,6 +122,12 @@ group_cv <- function(train_set, test_set, k=5, modelnum){
     } else if (modelnum == 3){
       model = lm('case_age_day_log ~ C(category) + pd_count + C(council_district) + C(case_origin)',
                data = train_sub)
+    } else if (modelnum == 4){
+      model = lm('case_age_day_log ~ C(category) + pd_count + C(case_origin) + (1|tractce)',
+               data = train_sub)
+    } else if (modelnum == 5){
+      model = lm('case_age_day_log ~ C(category) + pd_count + (1|tractce)',
+               data = train_sub)
     } else {
       model = lm('case_age_day_log ~ C(category) + pd_count + C(council_district) + (1|tractce)',
                data = train_sub)
@@ -143,8 +149,10 @@ cv_model2 <- group_cv(train_set, test_set, k=5, 2)
 saveRDS(cv_model2, "linmodel2.rds")
 # cv_model3 <- group_cv(train_set, test_set, k=5, 3)
 # saveRDS(cv_model3, "linmodel3.rds")
-cv_model4 <- group_cv(train_set, test_set, k=5, 4)
-saveRDS(cv_model4, "linmodel4.rds")
+#cv_model4 <- group_cv(train_set, test_set, k=5, 4)
+cv_model5 <- group_cv(train_set, test_set, k=5, 5)
+cv_model6 <- group_cv(train_set, test_set, k=5, 6)
+saveRDS(cv_model5, "linmodel5.rds")
 
 end.time <- Sys.time()
 time.taken <- end.time - start.time
@@ -152,3 +160,6 @@ time.taken
 
 
 ```
+
+
+
