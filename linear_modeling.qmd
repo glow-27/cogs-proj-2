@@ -7,8 +7,10 @@ editor: visual
 ```{r}
 library(tidyverse)
 library(glmmTMB)
-library(groupdata2)
 library(MASS)
+library(groupdata2)
+library(lme4)
+
 ```
 
 ```{r}
@@ -43,11 +45,11 @@ train_set <- neigh_partition[[2]]
 ```
 
 ```{r}
-train_set <- fold(train_set, k=5, id_col = 'comm_plan_name')
+train_set <- groupdata2::fold(train_set, k=5, id_col = 'comm_plan_name')
 train_set |>
   arrange(.folds)
 
-test_set <- fold(test_set, k=5, id_col = 'comm_plan_name')
+test_set <- groupdata2::fold(test_set, k=5, id_col = 'comm_plan_name')
 test_set |>
   arrange(.folds)
 ```
@@ -76,20 +78,29 @@ linmodel3 = lm('case_age_day_log ~ C(category) + pd_count + C(council_district) 
                )
 
 #With random ints
-linmodel4 = lm('case_age_day_log ~ category + pd_count + C(council_district) + (1|tractce)',
+linmodel4 = lmer('case_age_day_log ~ C(category) + pd_count + C(council_district) + (1|tractce)',
                data = gid_sub)
-summary(linmodel4)
+
+linmodel5 = lmer('case_age_day_log ~ C(category) + pd_count + (1|tractce)',
+               data = gid_sub)
+summary(linmodel5)
 ```
 
 ```{r}
 library(stargazer)
 
-stargazer(linmodel1, linmodel2, linmodel3, linmodel4, title = "Regression Results")
+stargazer(linmodel1, linmodel2, 
+          font.size = "small",
+          align = TRUE,
+          column.sep.width = "-30pt",
+          #omit.stat=c("f", "ser"),
+          no.space = TRUE,
+          title = "Regression Results")
 
 
 #MULTICOLLINEARITY CHECK
 library(performance)
-check_collinearity(linmodel4)
+check_collinearity(linmodel5)
 
 ```
 
@@ -100,7 +111,7 @@ mae_fn <- function(predicted, observed){
 }
 
 mse_fcn <- function(predicted, observed){
-  mean((observed - predicted)**2)
+  mean((observed - predicted)**2, na.rm = TRUE)
 }
 
 group_cv <- function(train_set, test_set, k=5, modelnum){
